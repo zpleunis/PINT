@@ -6,7 +6,7 @@ import pint.models
 from pint.fitter import Fitter
 import pint.fermi_toas as fermi
 import pint.plot_utils as plot_utils
-from pint.eventstats import hmw, hm
+from pint.eventstats import hmw, hm, h2sig
 from pint.models.priors import Prior, UniformUnboundedRV, UniformBoundedRV, GaussianBoundedRV
 from pint.observatory.fermi_obs import FermiObs
 from scipy.stats import norm, uniform
@@ -280,15 +280,17 @@ class emcee_fitter(Fitter):
                                           phases, self.template, self.weights)
         return -lnlikelihood
 
-    def phaseogram(self, weights=None, bins=100, rotate=0.0, size=5,
+    def phaseogram(self, weights=None, bins=16, rotate=0.0, size=5,
         alpha=0.25, plotfile=None):
         """
         Make a nice 2-panel phaseogram for the current model
         """
         mjds = self.toas.table['tdbld'].quantity
         phss = self.get_event_phases()
+        h = float(hmw(phss,self.weights))
         plot_utils.phaseogram(mjds, phss, weights=self.weights, bins=bins,
-            rotate=rotate, size=size, alpha=alpha, plotfile=plotfile)
+            rotate=rotate, size=size, alpha=alpha, plotfile=plotfile,
+            htest=h, htestsig=h2sig(h))
 
     def prof_vs_weights(self, nbins=50, use_weights=False):
         """
@@ -394,8 +396,8 @@ def main(argv=None):
     if burnin >= nsteps:
         log.error('burnin must be < nsteps')
         sys.exit(1)
-    nbins = 256 # For likelihood calculation based on gaussians file
-    outprof_nbins = 256 # in the text file, for pygaussfit.py, for instance
+    nbins = 16 #6 # For likelihood calculation based on gaussians file
+    outprof_nbins = 16 #6 # in the text file, for pygaussfit.py, for instance
     minMJD = args.minMJD
     maxMJD = args.maxMJD # Usually set by coverage of IERS file
 
@@ -430,7 +432,8 @@ def main(argv=None):
         os.path.isfile(eventfile+".pickle.gz"))):
         # Read event file and return list of TOA objects
         tl = fermi.load_Fermi_TOAs(eventfile, weightcolumn=weightcol,
-                                   targetcoord=target, minweight=minWeight)
+                                   targetcoord=target, minweight=minWeight,
+                                   logeref=3.6)
         # Limit the TOAs to ones in selected MJD range and above minWeight
         tl = [tl[ii] for ii in range(len(tl)) if (tl[ii].mjd.value > minMJD and tl[ii].mjd.value < maxMJD
             and (weightcol is None or tl[ii].flags['weight'] > minWeight))]
@@ -627,6 +630,7 @@ def main(argv=None):
     #ftr.set_params(dict(zip(ftr.fitkeys, np.percentile(samples, 50, axis=0))))
     # Make a phaseogram with the best MCMC result
     ftr.set_params(dict(zip(ftr.fitkeys[:-1], ftr.maxpost_fitvals[:-1])))
+    h = float(hmw(phss,weights))
     ftr.phaseogram(plotfile=ftr.model.PSR.value+"_post.png")
     plt.close()
 

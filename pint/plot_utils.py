@@ -3,8 +3,9 @@ from __future__ import absolute_import, print_function, division
 import matplotlib.pyplot as plt
 import numpy as np
 
-def phaseogram(mjds, phases, weights=None, title=None, bins=100, rotate=0.0, size=5,
-    alpha=0.25, width=6, maxphs=2.0, plotfile=None):
+def phaseogram(mjds, phases, weights=None, title=None, bins=100, rotate=0.0,
+               size=5, alpha=0.25, width=6, maxphs=2.0, plotfile=None,
+               htest=None, htestsig=None):
     """
     Make a nice 2-panel phaseogram
     """
@@ -18,8 +19,11 @@ def phaseogram(mjds, phases, weights=None, title=None, bins=100, rotate=0.0, siz
     h, x, p = ax1.hist(np.concatenate((phss, phss+1.0)),
         int(maxphs*bins), range=[0,maxphs], weights=wgts,
         color='k', histtype='step', fill=False, lw=2)
+    ax1.text(0.95 * maxphs, 1.14 * h.max(),
+             "H = {:.2f} ({:.2f}$\sigma$)".format(htest, htestsig),
+             ha='right', va='top')
     ax1.set_xlim([0.0, maxphs]) # show 1 or more pulses
-    ax1.set_ylim([0.0, 1.1*h.max()])
+    ax1.set_ylim([0.0, 1.2*h.max()])
     if weights is not None:
         ax1.set_ylabel("Weighted Counts")
     else:
