@@ -30,10 +30,15 @@ def main(argv=None):
         default=False,action='store_true')
     parser.add_argument("--plot",help="Show phaseogram plot.", action='store_true', default=False)
     parser.add_argument("--plotfile",help="Output figure file name (default=None)", default=None)
+    parser.add_argument("--nbins",help="Number of bins in phaseogram profile (default=100)", type=int, default=100)
+    parser.add_argument("--minMJD",help="Minimum MJD to include in analysis", default=None)
     parser.add_argument("--maxMJD",help="Maximum MJD to include in analysis", default=None)
+    parser.add_argument("--minWeight",help="Minimum weight to include (def 0.05)",
+                        type=float, default=0.05)
     parser.add_argument("--outfile",help="Output figure file name (default is to overwrite input file)", default=None)
     parser.add_argument("--planets",help="Use planetary Shapiro delay in calculations (default=False)", default=False, action="store_true")
     parser.add_argument("--ephem",help="Planetary ephemeris to use (default=DE421)", default="DE421")
+    parser.add_argument("--logeref", help="Reference energy for which the pulsar's weight distribution peaks.", type=float, default=4.1)
     args = parser.parse_args(argv)
 
     # If outfile is specified, that implies addphase
@@ -53,10 +58,21 @@ def main(argv=None):
         FermiObs(name='Fermi',ft2name=args.ft2)
 
     # Read event file and return list of TOA objects
-    tl  = load_Fermi_TOAs(args.eventfile, weightcolumn=args.weightcol,
-                          targetcoord=tc)
+    tl = load_Fermi_TOAs(args.eventfile, weightcolumn=args.weightcol,
+                         targetcoord=tc, minweight=args.minWeight,
+                         logeref=args.logeref)
 
     # Discard events outside of MJD range
+    if args.minMJD is not None:
+        tlnew = []
+        print("pre len : ",len(tl))
+        minT = Time(float(args.minMJD),format='mjd')
+        print("minT : ",minT)
+        for tt in tl:
+            if tt.mjd > minT:
+                tlnew.append(tt)
+        tl=tlnew
+        print("post len : ",len(tlnew))
     if args.maxMJD is not None:
         tlnew = []
         print("pre len : ",len(tl))
@@ -87,8 +103,9 @@ def main(argv=None):
     print("Htest : {0:.2f} ({1:.2f} sigma)".format(h,h2sig(h)))
     if args.plot:
         log.info("Making phaseogram plot with {0} photons".format(len(mjds)))
-        phaseogram(mjds,phases,weights,bins=100,plotfile = args.plotfile)
-
+        phaseogram(mjds, phases, weights, bins=args.nbins,
+                   plotfile=args.plotfile, write_prof=True, htest=h,
+                   htestsig=h2sig(h))
     if args.addphase:
         # Read input FITS file (again).
         # If overwriting, open in 'update' mode
