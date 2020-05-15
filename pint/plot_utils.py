@@ -1,12 +1,14 @@
 #!/usr/bin/env python
 from __future__ import absolute_import, print_function, division
+import matplotlib
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 import numpy as np
 
 def phaseogram(mjds, phases, weights=None, title=None, bins=100, rotate=0.0,
                size=5, alpha=0.25, width=6, maxphs=2.0, plotfile=None,
-               htest=None, htestsig=None):
+               write_prof=False, htest=None, htestsig=None, logeref=None):
     """
     Make a nice 2-panel phaseogram
     """
@@ -20,9 +22,12 @@ def phaseogram(mjds, phases, weights=None, title=None, bins=100, rotate=0.0,
     h, x, p = ax1.hist(np.concatenate((phss, phss+1.0)),
         int(maxphs*bins), range=[0,maxphs], weights=wgts,
         color='k', histtype='step', fill=False, lw=2)
-    ax1.text(0.95 * maxphs, 1.14 * h.max(),
+    ax1.text(0.97 * maxphs, 1.14 * h.max(),
              "H = {:.2f} ({:.2f}$\sigma$)".format(htest, htestsig),
              ha='right', va='top')
+    if logeref is not None:
+        ax1.text(0.03 * maxphs, 1.14 * h.max(),
+                 "$\mu_w$ = {:.1f}".format(logeref), ha='left', va='top')
     ax1.set_xlim([0.0, maxphs]) # show 1 or more pulses
     ax1.set_ylim([0.0, 1.2*h.max()])
     if weights is not None:
@@ -31,6 +36,11 @@ def phaseogram(mjds, phases, weights=None, title=None, bins=100, rotate=0.0,
         ax1.set_ylabel("Counts")
     if title is not None:
         ax1.set_title(title)
+    if write_prof:
+        bin_centers = (x[:bins] + x[1:bins+1]) / 2.
+        values = h[:bins]
+        prof = np.vstack((bin_centers, values)).T
+        np.savetxt("pulsar.bestprof", prof, delimiter="\t", newline="\n")
     if weights is None:
         ax2.scatter(phss, mjds, s=size, color='k', alpha=alpha)
         ax2.scatter(phss+1.0, mjds, s=size, color='k', alpha=alpha)

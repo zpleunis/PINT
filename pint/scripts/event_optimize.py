@@ -376,6 +376,8 @@ def main(argv=None):
     parser.add_argument("--priorerrfact",help="Multiple par file errors by this factor when setting gaussian prior widths",type=float,default=10.0)
     parser.add_argument("--usepickle",help="Read events from pickle file, if available?",
         default=False,action="store_true")
+    parser.add_argument("--logeref", help="Reference energy for which the pulsar's weight distribution peaks.", type=float, default=4.0)
+    parser.add_argument("--randomphase", help="Randomize photon phases to test background rate.", default=False, action="store_true")
 
     global nwalkers, nsteps, ftr
 
@@ -433,7 +435,7 @@ def main(argv=None):
         # Read event file and return list of TOA objects
         tl = fermi.load_Fermi_TOAs(eventfile, weightcolumn=weightcol,
                                    targetcoord=target, minweight=minWeight,
-                                   logeref=3.6)
+                                   logeref=args.logeref)
         # Limit the TOAs to ones in selected MJD range and above minWeight
         tl = [tl[ii] for ii in range(len(tl)) if (tl[ii].mjd.value > minMJD and tl[ii].mjd.value < maxMJD
             and (weightcol is None or tl[ii].flags['weight'] > minWeight))]
@@ -621,6 +623,34 @@ def main(argv=None):
         import corner
         fig = corner.corner(samples, labels=ftr.fitkeys, bins=50,
             truths=ftr.maxpost_fitvals, plot_contours=True)
+
+        # extract the axes
+        axes = np.array(fig.axes).reshape((ndim, ndim))
+
+        # loop over the diagonal
+        for i in range(ndim):
+            ax = axes[i, i]
+            ax.axvline(ftr.fitvals[i], color="#b46e46")
+            ax.axvline(ftr.fitvals[i]-ftr.fiterrs[i], color="#b46e46", ls=":")
+            ax.axvline(ftr.fitvals[i]+ftr.fiterrs[i], color="#b46e46", ls=":")
+
+        # loop over the histograms
+        for yi in range(ndim):
+            for xi in range(yi):
+                ax = axes[yi, xi]
+                ax.axvline(ftr.fitvals[xi], color="#b46e46")
+                ax.axvline(ftr.fitvals[xi]-ftr.fiterrs[xi], color="#b46e46",
+                           ls=":")
+                ax.axvline(ftr.fitvals[xi]+ftr.fiterrs[xi], color="#b46e46",
+                           ls=":")
+                ax.axhline(ftr.fitvals[yi], color="#b46e46")
+                ax.axhline(ftr.fitvals[yi]-ftr.fiterrs[yi], color="#b46e46",
+                           ls=":")
+                ax.axhline(ftr.fitvals[yi]+ftr.fiterrs[yi], color="#b46e46",
+                           ls=":")
+                ax.plot(ftr.fitvals[xi], ftr.fitvals[yi], "s",
+                        color="#b46e46")
+
         fig.savefig(ftr.model.PSR.value+"_triangle.png")
         plt.close()
     except ImportError:

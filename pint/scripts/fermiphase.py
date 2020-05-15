@@ -39,13 +39,14 @@ def main(argv=None):
     parser.add_argument("--planets",help="Use planetary Shapiro delay in calculations (default=False)", default=False, action="store_true")
     parser.add_argument("--ephem",help="Planetary ephemeris to use (default=DE421)", default="DE421")
     parser.add_argument("--logeref", help="Reference energy for which the pulsar's weight distribution peaks.", type=float, default=4.1)
+    parser.add_argument("--randomphase", help="Randomize photon phases to test background rate.", default=False, action="store_true")
+    parser.add_argument("--hout", help="Save results to pickle file.", default=False, action="store_true")
     args = parser.parse_args(argv)
 
     # If outfile is specified, that implies addphase
     if args.outfile is not None:
         args.addphase = True
-
-    # Read in model
+# Read in model
     modelin = pint.models.get_model(args.parfile)
     if 'ELONG' in modelin.params:
         tc = SkyCoord(modelin.ELONG.quantity,modelin.ELAT.quantity,
@@ -97,15 +98,47 @@ def main(argv=None):
     iphss,phss = modelin.phase(ts,abs_phase=True)
     # ensure all postive
     phases = np.where(phss < 0.0 * u.cycle, phss + 1.0 * u.cycle, phss)
+
+    print("args.randomphase:", args.randomphase)
+    if args.randomphase:
+        # assign random phases to test H-test noise floor
+        phases = np.random.uniform(low=0.0, high=1.0, size=phases.shape[0])
+
     mjds = ts.get_mjds()
     weights = np.array([w['weight'] for w in ts.table['flags']])
     h = float(hmw(phases,weights))
-    print("Htest : {0:.2f} ({1:.2f} sigma)".format(h,h2sig(h)))
+    log.info("Htest : {0:.2f} ({1:.2f} sigma)".format(h,h2sig(h)))
     if args.plot:
         log.info("Making phaseogram plot with {0} photons".format(len(mjds)))
         phaseogram(mjds, phases, weights, bins=args.nbins,
                    plotfile=args.plotfile, write_prof=True, htest=h,
-                   htestsig=h2sig(h))
+                   htestsig=h2sig(h), logeref=args.logeref)
+
+    if args.hout:
+        import pickle
+        pulsar = args.parfile.split("/")[-1].split(".")[0]
+        # open existing pickle file
+        with open("/data/data4/zpleunis/fermi/refold/results.pkl", "rb") as f:
+            results = pickle.load(f)
+        # add pulsar name if it's not processed before
+        if not pulsar in results.keys():
+            results[pulsar] = {"random": [],
+                               "valid": {},
+                               "full": {}}
+
+        # add H-test value
+        if args.randomphase:
+            results[pulsar]["random"].append(h)
+
+        elif args.minMJD is not None:
+            results[pulsar]["valid"][args.logeref] = h
+        else:
+            results[pulsar]["full"][args.logeref] = h
+
+        # save pickle file
+        with open("/data/data4/zpleunis/fermi/refold/results.pkl", "wb") as f:
+            pickle.dump(results, f)
+
     if args.addphase:
         # Read input FITS file (again).
         # If overwriting, open in 'update' mode
